@@ -1,3 +1,4 @@
+import time
 import csv
 import sys
 from pathlib import Path
@@ -8,6 +9,7 @@ sys.path.insert(0, str(ROOT))
 from src.extract import extract, missing_fields  # noqa: E402
 
 DATA = ROOT / "data" / "symptoms.csv"
+DELAY_SECONDS = 7
 
 
 def check(row, result):
@@ -37,7 +39,9 @@ def main():
         rows = list(csv.DictReader(f))
 
     passed = 0
-    for row in rows:
+        for i, row in enumerate(rows):
+        if i > 0:
+            time.sleep(DELAY_SECONDS)
         result = extract(row["utterance"])
         problems = check(row, result)
         if problems:
@@ -47,7 +51,7 @@ def main():
         else:
             passed += 1
             print(f"[통과] {row['id']}")
-
+            
     print(f"\n{passed}/{len(rows)} 통과")
 
 
