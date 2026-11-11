@@ -1,6 +1,6 @@
-import time
 import csv
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -39,7 +39,7 @@ def main():
         rows = list(csv.DictReader(f))
 
     passed = 0
-        for i, row in enumerate(rows):
+    for i, row in enumerate(rows):
         if i > 0:
             time.sleep(DELAY_SECONDS)
         result = extract(row["utterance"])
@@ -51,7 +51,7 @@ def main():
         else:
             passed += 1
             print(f"[통과] {row['id']}")
-            
+
     print(f"\n{passed}/{len(rows)} 통과")
 
 
