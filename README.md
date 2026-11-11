@@ -10,7 +10,8 @@
 - 증상 데이터는 직접 만든 가상 데이터만 사용합니다.
 
 ## 진행 상황
-- [ ] 요구사항 정의
-- [ ] 화면 설계
+- [x] 요구사항 정의 ([docs/requirements.md](docs/requirements.md))
+- [x] 대화 흐름 ([docs/conversation-flow.md](docs/conversation-flow.md))
+- [x] 화면 설계 ([docs/screen-design.md](docs/screen-design.md))
 - [ ] 가상 증상 데이터 작성
 - [ ] LLM 접수 흐름 구현
