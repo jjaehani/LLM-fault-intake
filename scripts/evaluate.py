@@ -10,6 +10,18 @@ from src.extract import extract, missing_fields  # noqa: E402
 
 DATA = ROOT / "data" / "symptoms.csv"
 DELAY_SECONDS = 7
+RETRY_WAITS = [10, 30]  # 호출이 실패하면 10초, 30초 쉬고 다시 시도한다
+
+
+def extract_with_retry(message):
+    """서버 과부하(503)나 한도 초과(429)로 실패하면 쉬었다가 다시 시도한다."""
+    for wait in RETRY_WAITS:
+        try:
+            return extract(message)
+        except Exception as error:
+            print(f"  (호출 실패: {type(error).__name__}, {wait}초 후 다시 시도)")
+            time.sleep(wait)
+    return extract(message)
 
 
 def check(row, result):
@@ -38,13 +50,20 @@ def main():
     with DATA.open(encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
 
-    passed = 0
+    passed = failed = errored = 0
     for i, row in enumerate(rows):
         if i > 0:
             time.sleep(DELAY_SECONDS)
-        result = extract(row["utterance"])
+        try:
+            result = extract_with_retry(row["utterance"])
+        except Exception as error:
+            errored += 1
+            print(f"[오류] {row['id']} 호출 실패로 채점하지 못함 ({type(error).__name__})")
+            continue
+
         problems = check(row, result)
         if problems:
+            failed += 1
             print(f"[실패] {row['id']} {row['utterance']}")
             for problem in problems:
                 print(f"  - {problem}")
@@ -52,7 +71,7 @@ def main():
             passed += 1
             print(f"[통과] {row['id']}")
 
-    print(f"\n{passed}/{len(rows)} 통과")
+    print(f"\n통과 {passed}, 실패 {failed}, 호출 오류 {errored} (전체 {len(rows)})")
 
 
 if __name__ == "__main__":
