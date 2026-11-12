@@ -1,0 +1,21 @@
+id,type,utterance,equipment,symptom,symptom_code,onset,status,ask,note
+D-001,intake,인버터에 OC 알람 뜨고 모터가 안 돌아요 라인 섰어요,인버터,과전류 알람,INV-ALM-01,,완전히 멈춤,onset,알람이 표시되면 알람 코드를 고른다
+D-002,intake,HMI 화면이 아예 안 나와요 전원 램프는 켜져 있고요,HMI,화면 안 나옴,HMI-SCR-01,,,onset;status,
+D-003,intake,터치패널 누르면 엉뚱한 데가 눌려요 어제부터요 작업은 하고 있어요,HMI,다른 곳이 눌림,HMI-TCH-02,어제,느리지만 작동,,
+D-004,intake,서보 엔코더 알람이 계속 떠요,서보드라이브,엔코더 알람,SRV-ALM-01,,,onset;status,'서보'는 서보드라이브로 본다
+D-005,intake,서보모터가 정해진 위치에 안 서고 조금씩 밀려요 오늘부터 그래서 작업 못 하고 있음,서보드라이브,위치 틀어짐,SRV-MOT-01,오늘,완전히 멈춤,,
+D-006,intake,PLC ERR 램프 들어왔어요,PLC,ERR 램프,PLC-RUN-01,,,onset;status,
+D-007,intake,시퀀서 입력이 안 들어와요 센서는 정상이에요,PLC,입력 안 들어옴,PLC-IO-01,,,onset;status,'시퀀서'는 PLC로 본다
+D-008,intake,산업용 PC가 부팅하다가 계속 재부팅돼요 지금 설비 다 멈춤,산업용 PC,재부팅 반복,IPC-BOOT-02,오늘,완전히 멈춤,,
+D-009,intake,산업용 컴퓨터에서 SSD를 못 잡아요,산업용 PC,SSD 인식 안 됨,IPC-STO-01,,,onset;status,
+D-010,intake,파워에서 24V가 안 나와요,파워서플라이,출력 전압 안 나옴,PSU-OUT-01,,,onset;status,
+D-011,intake,SMPS에서 타는 냄새 나요 일주일 전부터 가끔,파워서플라이,타는 냄새,PSU-HEAT-01,일주일 전,,status,
+D-012,intake,인버터 팬이 안 돌아요,인버터,냉각팬 안 돎,INV-FAN-01,,,onset;status,
+D-013,intake,HMI랑 PLC 통신이 자꾸 끊겨요,HMI,통신 끊김,HMI-COM-01,,,onset;status,통신 끊김은 메시지가 보이는 HMI로 분류한다
+D-014,intake,인버터가 이상해요,인버터,,,,,symptom;onset;status,장비만 있고 증상은 없다
+D-015,intake,모터가 안 돌아요,,모터 안 돎,,,,equipment;onset;status,인버터인지 서보인지 모르므로 장비와 코드를 비운다
+D-016,intake,장비 에러 났어요 빨리 와주세요,,,,,,equipment;symptom;onset;status,급하다는 말만으로 작동 상태를 정하지 않는다
+D-017,intake,서보 알람 떴는데 번호는 기억 안 나요 어제 오후부터요,서보드라이브,알람,SRV-ALM-03,어제,,status,
+D-018,intake,인버터랑 서보 둘 다 전원이 안 들어와요,인버터;서보드라이브,전원 안 들어옴,INV-PWR-01;SRV-PWR-01,,,onset;status,장비가 두 개. 알려진 한계
+D-019,off_topic,수리 견적서 메일로 보내 주세요,,,,,,,견적은 접수 범위 밖
+D-020,off_topic,오늘 몇 시까지 영업해요?,,,,,,,
