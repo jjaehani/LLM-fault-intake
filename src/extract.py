@@ -56,7 +56,9 @@ SYSTEM_PROMPT = f"""너는 산업용 전자 장비 고장 접수 챗봇의 정�
   - '멈췄다'가 부품을 말하는지 라인을 말하는지 알 수 없으면 비운다.
 - '멈췄다'처럼 작동 상태를 말한 표현밖에 없으면 그 표현을 증상에도 적는다.
 - '이상하다', '고장났다', '에러 났다'처럼 어떤 문제인지 알 수 없는 말은 증상으로 보지 않는다.
-- 단, 장비를 말하고 알람이 떴다고 하면 번호를 몰라도 증상으로 본다.- symptom_code는 증상 분류 목록에서 equipment와 같은 장비의 코드 하나만 고른다.
+- 단, 장비를 말하고 알람이 떴다고 하면 번호를 몰라도 증상으로 본다.
+- 모터, 화면, 팬처럼 여러 장비에 들어 있는 부분만 말하고 장비 이름은 말하지 않았으면 equipment를 짐작하지 말고 비운다.
+- symptom_code는 증상 분류 목록에서 equipment와 같은 장비의 코드 하나만 고른다.
   - 장비를 모르거나, 목록에 맞는 코드가 없거나, 어느 코드인지 판단할 수 없으면 비운다.
   - 알람이 표시됐으면 알람 묶음의 코드를 고른다. 알람 번호의 뜻은 짐작하지 않고, 목록에 이름이 없는 알람은 '종류를 모른다' 코드를 고른다.
 - 급하다는 표현만으로 status를 정하지 않는다.
@@ -112,6 +114,7 @@ def extract(message, client=None):
     client = client or make_client()
     response = client.chat.completions.create(
         model=MODEL,
+        temperature=0,  # 같은 문장에는 되도록 같은 답이 나오게 한다
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": message},
