@@ -68,4 +68,5 @@ python scripts/evaluate.py data/holdout.csv   # 시험용
 - [x] 항목 추출과 채점
 - [x] 되묻기 대화 흐름 구현
 - [x] 카카오톡 챗봇 연결
-- [ ] 항상 켜져 있는 서버로 옮기기
+- [ ] 
+서버는 GitHub Codespaces에서 실행합니다. 상시 운영 서버는 두지 않았고, 시연할 때 Codespace를 켜서 사용합니다.
