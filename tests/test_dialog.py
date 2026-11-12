@@ -130,6 +130,16 @@ class IntakeDialogTest(unittest.TestCase):
         self.assertEqual(record["state"], "작성 중 중단")
         self.assertEqual(record["intake"]["equipment"], "인버터")
 
+    def test_번호_대신_선택지_이름이나_따옴표가_붙은_번호도_알아듣는다(self):
+        dialog = IntakeDialog(
+            fake({"PLC 출력": {"equipment": "PLC", "symptom": "출력이 안 나간다", "symptom_code": "PLC-IO-02", "onset": "어제"}}),
+            self.save_path,
+        )
+        dialog.handle("PLC 출력 안 나가요 어제부터")
+        self.assertIn("맞나요", dialog.handle("느리지만 작동"))
+        self.assertIn("어떤 항목", dialog.handle('"2"'))
+        self.assertIn("언제부터", dialog.handle("발생 시점"))
+
 
 if __name__ == "__main__":
     unittest.main()
