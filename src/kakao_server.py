@@ -46,16 +46,18 @@ def make_dialog():
 
 
 def to_kakao(reply):
-    """대화 흐름의 답을 카카오 응답 형식으로 바꾼다. 번호 선택지는 바로가기 버튼으로 만든다."""
+    """대화 흐름의 답을 카카오 응답 형식으로 바꾼다. 번호 선택지는 말풍선에서 빼고 바로가기 버튼으로 만든다."""
     text_lines, buttons = [], []
     for line in reply.split("\n"):
         match = OPTION_LINE.match(line)
         if match:
-            number, label = match.groups()
-            buttons.append({"label": label[:MAX_LABEL], "action": "message", "messageText": number})
+            _, label = match.groups()
+            # 버튼을 누르면 선택지 이름이 그대로 말풍선에 보이게 한다. 대화 흐름이 이름도 알아듣는다.
+            buttons.append({"label": label[:MAX_LABEL], "action": "message", "messageText": label})
+            continue  # 선택지는 버튼으로 보여 주니 말풍선 글에서는 뺀다
         text_lines.append(line.strip())
 
-    template = {"outputs": [{"simpleText": {"text": "\n".join(text_lines)}}]}
+    template = {"outputs": [{"simpleText": {"text": "\n".join(text_lines).strip()}}]}
     if buttons:
         template["quickReplies"] = buttons
     return {"version": "2.0", "template": template}
