@@ -81,7 +81,7 @@ class IntakeDialogTest(unittest.TestCase):
 
     def test_확인_단계에서_항목을_고칠_수_있다(self):
         dialog = IntakeDialog(
-            fake({"HMI": {"equipment": "HMI", "symptom": "화면 안 나옴", "symptom_code": "HMI-SCR-01", "onset": "오늘", "status": "완전히 멈춤"}}),
+            fake({"HMI 화면": {"equipment": "HMI", "symptom": "화면 안 나옴", "symptom_code": "HMI-SCR-01", "onset": "오늘", "status": "완전히 멈춤"}}),
             self.save_path,
         )
         self.assertIn("맞나요", dialog.handle("HMI 화면이 안 나와요 오늘부터 라인 섰어요"))
@@ -96,6 +96,39 @@ class IntakeDialogTest(unittest.TestCase):
         )
         dialog.handle("파워 출력이 안 나와요 오늘부터")
         self.assertIn("1, 2, 3 중에서", dialog.handle("모르겠어요"))
+
+    def test_답에_다른_장비가_섞이면_확인하고_고친다(self):
+        dialog = IntakeDialog(
+            fake({
+                "서보드라이브 모터": {"equipment": "서보드라이브", "symptom": "모터가 안 돈다"},
+                "서보 어제": {"equipment": "서보드라이브", "onset": "어제"},
+                "모터": {"equipment": "인버터", "symptom": "모터가 안 돈다", "symptom_code": "INV-OUT-01"},
+            }),
+            self.save_path,
+        )
+        self.assertIn("언제부터", dialog.handle("모터가 안 돌아요"))
+        self.assertIn("앞에서는 인버터", dialog.handle("서보 어제요"))
+        self.assertIn("어떤 상태", dialog.handle("1"))
+        self.assertEqual(dialog.intake["equipment"], "서보드라이브")
+        self.assertEqual(dialog.intake["onset"], "어제")
+        self.assertEqual(dialog.intake["symptom_code"], "")  # 인버터 코드는 버린다
+
+    def test_다른_고장을_말하면_새로_접수하고_앞의_내용은_남긴다(self):
+        dialog = IntakeDialog(
+            fake({
+                "HMI 화면": {"equipment": "HMI", "symptom": "화면이 안 나온다", "symptom_code": "HMI-SCR-01", "onset": "오늘", "status": "완전히 멈춤"},
+                "모터": {"equipment": "인버터", "symptom": "모터가 안 돈다", "symptom_code": "INV-OUT-01"},
+            }),
+            self.save_path,
+        )
+        dialog.handle("모터가 안 돌아요")
+        self.assertIn("방금 HMI", dialog.handle("HMI 화면이 안 나와요 오늘 아침부터 라인 섰어요"))
+        reply = dialog.handle("2")
+        self.assertIn("장비: HMI", reply)
+        self.assertIn("발생 시점: 오늘", reply)
+        record = self.records()[0]
+        self.assertEqual(record["state"], "작성 중 중단")
+        self.assertEqual(record["intake"]["equipment"], "인버터")
 
 
 if __name__ == "__main__":
