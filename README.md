@@ -1,4 +1,4 @@
-# llm-fault-intake
+# LLM-fault-intake
 
 카카오톡 챗봇으로 산업용 전자 장비(HMI, 인버터, 서보드라이브, PLC, 산업용 PC, 파워서플라이)의 고장을 접수하는 LLM 프로젝트입니다. 현재 진행 중입니다.
 
