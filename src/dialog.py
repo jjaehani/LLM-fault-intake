@@ -19,6 +19,7 @@ QUESTIONS = {
 LABELS = {"equipment": "장비", "symptom": "증상", "onset": "발생 시점", "status": "작업 상태"}
 URGENCY = {"완전히 멈춤": "높음", "느리지만 작동": "중간", "정상 작동": "낮음"}
 CODE_DETAIL = {row["code"]: row["detail"] for row in TAXONOMY}
+CODE_PREFIX = {row["equipment"]: row["code"].split("-")[0] for row in TAXONOMY}
 
 OFF_TOPIC_REPLY = "저는 장비 고장 접수만 도와드릴 수 있어요. 고장 난 장비와 증상을 말씀해 주세요."
 ERROR_REPLY = (
@@ -47,7 +48,8 @@ class IntakeDialog:
         self.intake = {field: "" for field in FIELDS + ["symptom_code"]}
         self.messages = []
         self.waiting_for = None  # 지금 답을 기다리는 항목
-        self.stage = "collect"  # collect, confirm, choose_fix
+        self.stage = "collect"  # collect, confirm, choose_fix, conflict
+        self.pending = None
 
     def handle(self, text):
         text = text.strip()
@@ -59,6 +61,8 @@ class IntakeDialog:
             return self._handle_confirm(text)
         if self.stage == "choose_fix":
             return self._handle_choose_fix(text)
+        if self.stage == "conflict":
+            return self._handle_conflict(text)
         if self.waiting_for:
             return self._handle_answer(text)
         return self._handle_first(text)
@@ -76,6 +80,9 @@ class IntakeDialog:
         if result is None:
             self.messages.pop()  # 다시 보내면 처음 메시지로 다시 처리한다
             return ERROR_REPLY
+        return self._start(result)
+
+    def _start(self, result):
         if not result["is_intake"]:
             return OFF_TOPIC_REPLY
         for field in FIELDS + ["symptom_code"]:
@@ -91,33 +98,83 @@ class IntakeDialog:
             if not choice:
                 return "1, 2, 3 중에서 골라 주세요.\n" + QUESTIONS["status"]
             self.intake["status"] = choice
+            self.waiting_for = None
+            return self._next()
 
-        elif field == "onset":
-            self.intake["onset"] = text
+        # 글로 받는 답은 LLM으로 다시 읽는다. 질문과 다른 내용이 섞여 올 수 있어서다.
+        # (예: 발생 시점을 물었는데 "서보 어제요"처럼 장비를 같이 말하는 경우)
+        query = text if field == "equipment" else f"{self.intake['equipment']} {text}".strip()
+        result = self._call(query)
+        if result is None:
+            return ERROR_REPLY
 
-        elif field == "equipment":
-            self.intake["equipment"] = match_equipment(text) or text
-            self.intake["symptom_code"] = ""
-            if self.intake["symptom"]:
-                result = self._call(f"{self.intake['equipment']} {self.intake['symptom']}")
-                if result and result["equipment"] == self.intake["equipment"]:
-                    self.intake["symptom_code"] = result["symptom_code"]
+        answered = match_equipment(text) or result["equipment"]
+        current = self.intake["equipment"]
+        if answered and current and answered != current and field != "equipment":
+            self.stage = "conflict"
+            self.pending = (text, result, answered)
+            return (
+                f"앞에서는 {current}(으)로 알아들었는데, 방금 {answered}을(를) 말씀하셨어요.\n"
+                f"  1. 장비를 {answered}(으)로 고치기\n"
+                f"  2. {answered} 고장을 새로 접수하기 (지금 내용은 따로 저장)\n"
+                f"  3. {current} 그대로 진행"
+            )
 
-        elif field == "symptom":
-            result = self._call(f"{self.intake['equipment']} {text}".strip())
-            if result is None:
-                return ERROR_REPLY
-            # 모델이 증상을 못 뽑으면 접수자의 말을 그대로 두고 담당자가 확인한다.
-            self.intake["symptom"] = result["symptom"] or text
-            self.intake["symptom_code"] = ""
-            if result["equipment"] == self.intake["equipment"]:
-                self.intake["symptom_code"] = result["symptom_code"]
-            for other in ("onset", "status"):
-                if result[other] and not self.intake[other]:
-                    self.intake[other] = result[other]
-
+        self._apply_answer(field, text, result, answered)
         self.waiting_for = None
         return self._next()
+
+    def _apply_answer(self, field, text, result, answered):
+        if field == "equipment":
+            self.intake["equipment"] = answered or text
+        elif field == "symptom":
+            # 모델이 증상을 못 뽑으면 접수자의 말을 그대로 두고 담당자가 확인한다.
+            self.intake["symptom"] = result["symptom"] or text
+        elif field == "onset":
+            self.intake["onset"] = result["onset"] or text
+
+        # 답에 함께 들어 있던 다른 항목은 비어 있는 곳만 채운다.
+        for other in ("symptom", "onset", "status"):
+            if other != field and result[other] and not self.intake[other]:
+                self.intake[other] = result[other]
+        self._reclassify(result)
+
+    def _reclassify(self, result=None):
+        """장비나 증상이 바뀌면 증상 코드를 다시 고른다. 장비와 맞지 않는 코드는 버린다."""
+        equipment, symptom = self.intake["equipment"], self.intake["symptom"]
+        if result and result["equipment"] == equipment and result["symptom_code"]:
+            self.intake["symptom_code"] = result["symptom_code"]
+        elif equipment and symptom and not self._code_matches():
+            again = self._call(f"{equipment} {symptom}")
+            ok = again and again["equipment"] == equipment
+            self.intake["symptom_code"] = again["symptom_code"] if ok else ""
+        if not self._code_matches():
+            self.intake["symptom_code"] = ""
+
+    def _code_matches(self):
+        code = self.intake["symptom_code"]
+        return bool(code) and code.split("-")[0] == CODE_PREFIX.get(self.intake["equipment"])
+
+    def _handle_conflict(self, text):
+        answer, result, answered = self.pending
+        choice = text[:1]
+        if choice == "1":
+            self.stage = "collect"
+            self.intake["equipment"] = answered
+            self.intake["symptom_code"] = ""
+            field = self.waiting_for
+            self._apply_answer(field, answer, result, answered)
+            self.waiting_for = None
+            return self._next()
+        if choice == "2":
+            self._save(state="작성 중 중단")
+            self.reset()
+            self.messages.append(answer)
+            return self._start(result)
+        if choice == "3":
+            self.stage = "collect"
+            return QUESTIONS[self.waiting_for]
+        return "1, 2, 3 중에서 골라 주세요."
 
     def _next(self):
         for field in FIELDS:
