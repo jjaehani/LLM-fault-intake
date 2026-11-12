@@ -1,3 +1,10 @@
+"""가상 증상 데이터로 추출 결과를 채점한다.
+
+사용법:
+    python scripts/evaluate.py                    # data/dev.csv (프롬프트 조정용)
+    python scripts/evaluate.py data/holdout.csv   # 시험용. 프롬프트를 고칠 때 보지 않는다
+"""
+
 import csv
 import sys
 import time
@@ -8,7 +15,7 @@ sys.path.insert(0, str(ROOT))
 
 from src.extract import extract, missing_fields  # noqa: E402
 
-DATA = ROOT / "data" / "symptoms.csv"
+DEFAULT_DATA = ROOT / "data" / "dev.csv"
 DELAY_SECONDS = 7
 RETRY_WAITS = [10, 30]  # 호출이 실패하면 10초, 30초 쉬고 다시 시도한다
 
@@ -43,12 +50,20 @@ def check(row, result):
     for field in ("equipment", "status"):
         if row[field] and result[field] != row[field]:
             problems.append(f"{field}: 정답 {row[field]}, 결과 {result[field]}")
+
+    # 증상 코드는 정답이 비어 있으면 결과도 비어 있어야 한다.
+    if "symptom_code" in row and result["symptom_code"] != row["symptom_code"]:
+        expected = row["symptom_code"] or "(비움)"
+        got = result["symptom_code"] or "(비움)"
+        problems.append(f"symptom_code: 정답 {expected}, 결과 {got}")
     return problems
 
 
 def main():
-    with DATA.open(encoding="utf-8") as f:
+    data = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_DATA
+    with data.open(encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
+    print(f"채점 데이터: {data.name} ({len(rows)}문장)\n")
 
     passed = failed = errored = 0
     for i, row in enumerate(rows):
