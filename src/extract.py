@@ -88,9 +88,9 @@ API_KEY = os.environ.get("LLM_API_KEY") or os.environ.get("GEMINI_API_KEY")
 MODEL = os.environ.get("LLM_MODEL", "gemini-3.5-flash-lite")
 
 
-def make_client():
-    # 응답이 30초 안에 없으면 실패로 처리한다. 실패 시 재시도는 1번만 한다.
-    return OpenAI(base_url=BASE_URL, api_key=API_KEY, timeout=30, max_retries=1)
+def make_client(timeout=30, max_retries=1):
+    # 응답이 timeout초 안에 없으면 실패로 처리한다. 채점은 30초, 카카오 스킬 서버는 4초를 쓴다.
+    return OpenAI(base_url=BASE_URL, api_key=API_KEY, timeout=timeout, max_retries=max_retries)
 
 
 def clean(result):
