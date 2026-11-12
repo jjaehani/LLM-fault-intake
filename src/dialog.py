@@ -5,6 +5,7 @@ LLM은 처음 메시지와 증상 답변에서만 부르고, 질문 문구와 �
 """
 
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -16,6 +17,7 @@ QUESTIONS = {
     "onset": "언제부터 그랬나요? (예: 오늘, 어제, 일주일 전)",
     "status": "지금 라인이나 작업은 어떤 상태인가요?\n  1. 완전히 멈춤\n  2. 느리지만 작동\n  3. 정상 작동",
 }
+OPTION_LINE = re.compile(r"^\s*([1-9])\.\s*(.+)$")
 LABELS = {"equipment": "장비", "symptom": "증상", "onset": "발생 시점", "status": "작업 상태"}
 URGENCY = {"완전히 멈춤": "높음", "느리지만 작동": "중간", "정상 작동": "낮음"}
 CODE_DETAIL = {row["code"]: row["detail"] for row in TAXONOMY}
@@ -50,6 +52,7 @@ class IntakeDialog:
         self.waiting_for = None  # 지금 답을 기다리는 항목
         self.stage = "collect"  # collect, confirm, choose_fix, conflict
         self.pending = None
+        self.options = []
 
     def handle(self, text):
         text = text.strip()
@@ -57,6 +60,12 @@ class IntakeDialog:
             return "메시지를 입력해 주세요."
         self.messages.append(text)
 
+        reply = self._route(text)
+        # 답에 번호 선택지가 있으면 기억해 둔다. 접수자가 번호 대신 선택지 이름을 보내도 알아듣기 위해서다.
+        self.options = [m.group(2).strip() for m in map(OPTION_LINE.match, reply.split("\n")) if m]
+        return reply
+
+    def _route(self, text):
         if self.stage == "confirm":
             return self._handle_confirm(text)
         if self.stage == "choose_fix":
@@ -66,6 +75,16 @@ class IntakeDialog:
         if self.waiting_for:
             return self._handle_answer(text)
         return self._handle_first(text)
+
+    def _pick(self, text):
+        """번호 선택 답을 해석한다. "2", "2번", 선택지 이름("고칠게요") 모두 받는다. 못 알아들으면 None."""
+        for i, label in enumerate(self.options, 1):
+            if text.strip() == label:
+                return i
+        match = re.search(r"[1-9]", text)
+        if match and int(match.group()) <= len(self.options):
+            return int(match.group())
+        return None
 
     def _call(self, text):
         """LLM 호출이 실패하면 None을 돌려주고, 지금까지의 대화를 파일에 남긴다."""
@@ -93,11 +112,10 @@ class IntakeDialog:
         field = self.waiting_for
 
         if field == "status":
-            choice = {"1": STATUS_VALUES[0], "2": STATUS_VALUES[1], "3": STATUS_VALUES[2]}.get(text[:1])
-            choice = choice or (text if text in STATUS_VALUES else "")
-            if not choice:
+            number = self._pick(text)
+            if number is None:
                 return "1, 2, 3 중에서 골라 주세요.\n" + QUESTIONS["status"]
-            self.intake["status"] = choice
+            self.intake["status"] = STATUS_VALUES[number - 1]
             self.waiting_for = None
             return self._next()
 
@@ -157,8 +175,8 @@ class IntakeDialog:
 
     def _handle_conflict(self, text):
         answer, result, answered = self.pending
-        choice = text[:1]
-        if choice == "1":
+        choice = self._pick(text)
+        if choice == 1:
             self.stage = "collect"
             self.intake["equipment"] = answered
             self.intake["symptom_code"] = ""
@@ -166,15 +184,15 @@ class IntakeDialog:
             self._apply_answer(field, answer, result, answered)
             self.waiting_for = None
             return self._next()
-        if choice == "2":
+        if choice == 2:
             self._save(state="작성 중 중단")
             self.reset()
             self.messages.append(answer)
             return self._start(result)
-        if choice == "3":
+        if choice == 3:
             self.stage = "collect"
             return QUESTIONS[self.waiting_for]
-        return "1, 2, 3 중에서 골라 주세요."
+        return "1, 2, 3 중에서 골라 주세요.\n" + "\n".join(f"  {i}. {o}" for i, o in enumerate(self.options, 1))
 
     def _next(self):
         for field in FIELDS:
@@ -186,28 +204,30 @@ class IntakeDialog:
 
     def _summary(self):
         code = self.intake["symptom_code"]
-        code_text = f"{code} ({CODE_DETAIL[code]})" if code else "담당자 확인 필요"
+        code_text = f"{code} {CODE_DETAIL[code]}" if code else "담당자 확인 필요"
         lines = [f"{LABELS[field]}: {self.intake[field]}" for field in FIELDS]
         lines.insert(2, f"증상 분류: {code_text}")
         lines.append(f"긴급도: {URGENCY[self.intake['status']]}")
         return "\n".join(lines)
 
     def _handle_confirm(self, text):
-        if text.startswith("1") or text.startswith("맞"):
+        number = self._pick(text)
+        if number == 1:
             intake_id = self._save(state="접수됨")
             self.reset()
             return f"접수됐어요. 접수 번호는 {intake_id}이에요.\n담당자가 내용을 확인한 뒤 연락드릴게요."
-        if text.startswith("2") or text.startswith("고칠"):
+        if number == 2:
             self.stage = "choose_fix"
             options = "\n".join(f"  {i}. {LABELS[field]}" for i, field in enumerate(FIELDS, 1))
             return "어떤 항목을 고칠까요?\n" + options
         return "1 또는 2로 답해 주세요.\n  1. 맞아요\n  2. 고칠게요"
 
     def _handle_choose_fix(self, text):
-        index = text[:1]
-        if index not in {"1", "2", "3", "4"}:
-            return "1부터 4 중에서 골라 주세요."
-        field = FIELDS[int(index) - 1]
+        number = self._pick(text)
+        if number is None:
+            options = "\n".join(f"  {i}. {LABELS[field]}" for i, field in enumerate(FIELDS, 1))
+            return "1부터 4 중에서 골라 주세요.\n" + options
+        field = FIELDS[number - 1]
         self.stage = "collect"
         self.waiting_for = field
         return QUESTIONS[field]
