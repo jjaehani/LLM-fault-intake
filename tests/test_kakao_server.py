@@ -51,9 +51,11 @@ class KakaoServerTest(unittest.TestCase):
     def test_번호_선택지는_바로가기_버튼이_된다(self):
         self.send("u1", "PLC 출력 안 나가요")
         body = self.send("u1", "어제")
+        self.assertNotIn("1. 완전히 멈춤", body["template"]["outputs"][0]["simpleText"]["text"])
         buttons = body["template"]["quickReplies"]
-        self.assertEqual([b["messageText"] for b in buttons], ["1", "2", "3"])
-        self.assertEqual(buttons[0]["label"], "완전히 멈춤")
+        self.assertEqual([b["messageText"] for b in buttons], ["완전히 멈춤", "느리지만 작동", "정상 작동"])
+        body = self.send("u1", "완전히 멈춤")  # 버튼을 누른 것과 같다
+        self.assertIn("긴급도: 높음", body["template"]["outputs"][0]["simpleText"]["text"])
 
     def test_접수자마다_대화를_따로_기억한다(self):
         self.send("u1", "PLC 출력 안 나가요")
